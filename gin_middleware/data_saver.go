@@ -43,6 +43,8 @@ func DataSaver(
 	logger.SetOutput(os.Stdout)
 
 	return func(c *gin.Context) {
+		c.Next()
+
 		var req, resp map[string]interface{}
 
 		data := serviceData{
@@ -53,15 +55,15 @@ func DataSaver(
 		err := json.NewDecoder(c.Request.Body).Decode(&req)
 		if err != nil {
 			logger.Printf("Decoding request caused an error: %s", err.Error())
+			return
 		} else {
 			data.Payload["request"] = req
 		}
 
-		c.Next()
-
 		err = json.NewDecoder(c.Request.Response.Body).Decode(&resp)
 		if err != nil {
 			logger.Printf("Decoding response caused an error: %s", err.Error())
+			return
 		} else {
 			data.Payload["response"] = resp
 		}
@@ -78,12 +80,14 @@ func DataSaver(
 			switch {
 			case err != nil:
 				logger.Printf("Sending to the DataSaver caused an error: %s", err.Error())
+				return
 			case resp.StatusCode > 299:
 				var body any
 
-				err := json.NewDecoder(resp.Body).Decode(body)
+				err := json.NewDecoder(resp.Body).Decode(&body)
 				if err != nil {
 					logger.Printf("Decoding response from the DataSaver caused an error: %s", err.Error())
+					return
 				}
 				logger.Printf("Response from the DataSaver has status: %d, body: %v", resp.StatusCode, body)
 			}
