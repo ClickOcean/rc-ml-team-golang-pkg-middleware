@@ -1,8 +1,11 @@
 package ginmiddleware
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -28,9 +31,13 @@ type requestParams struct {
 	SuccessResult any
 }
 
-type serviceData struct {
-	ServiceName string                 `json:"service_name"`
-	Payload     map[string]interface{} `json:"payload"`
+type multiWriter struct {
+	gin.ResponseWriter
+	w io.Writer
+}
+
+func (mw multiWriter) Write(b []byte) (int, error) {
+	return mw.w.Write(b)
 }
 
 func DataSaver(
@@ -43,39 +50,48 @@ func DataSaver(
 	logger.SetOutput(os.Stdout)
 
 	return func(c *gin.Context) {
+		//data has format
+		//{"service_name":"some_name","payload":{"request":any,"response":any}}
+
+		var (
+			data, respBuf bytes.Buffer
+		)
+
+		mWriter := &multiWriter{
+			ResponseWriter: c.Writer,
+			w:              io.MultiWriter(c.Writer, &respBuf),
+		}
+		c.Writer = mWriter
+
+		data.WriteString(fmt.Sprintf(`{"service_name":"%s",`, serviceName))
+		data.WriteString(`"payload":{"request":`)
+
+		tee := io.TeeReader(c.Request.Body, &data)
+		c.Request.Body = io.NopCloser(tee)
 		c.Next()
 
-		var req, resp map[string]interface{}
+		data.WriteString(`,"response":`)
 
-		data := serviceData{
-			ServiceName: serviceName,
-			Payload:     make(map[string]interface{}),
-		}
-
-		err := json.NewDecoder(c.Request.Body).Decode(&req)
+		_, err := data.ReadFrom(&respBuf)
 		if err != nil {
-			logger.Printf("Decoding request caused an error: %s", err.Error())
-			return
-		} else {
-			data.Payload["request"] = req
+			logger.Printf("Reading response buffer caused an error: %s", err.Error())
 		}
-
-		err = json.NewDecoder(c.Request.Response.Body).Decode(&resp)
-		if err != nil {
-			logger.Printf("Decoding response caused an error: %s", err.Error())
-			return
-		} else {
-			data.Payload["response"] = resp
-		}
+		data.WriteString(`}}`)
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Timeout)*time.Second)
 		go func() {
 			defer cancel()
 
+			if !json.Valid(data.Bytes()) {
+				logger.Printf("JSON isn't valid: %s", data.String())
+				return
+			}
+
 			req := requestParams{
 				URL:  cfg.URL,
 				Body: data,
 			}
+
 			resp, err := client.Post(ctx, req)
 			switch {
 			case err != nil:
