@@ -12,13 +12,13 @@ type MetricsMonitor interface {
 }
 
 func Metrics(monitor MetricsMonitor) gin.HandlerFunc {
-	return func(ctx *gin.Context) {
+	return func(c *gin.Context) {
 
 		start := time.Now()
-		ctx.Next()
+		c.Next()
 		duration := time.Since(start).Seconds()
 
-		status, method, path := ctx.Writer.Status(), ctx.Request.Method, ctx.FullPath()
+		status, method, path := c.Writer.Status(), c.Request.Method, c.FullPath()
 
 		monitor.ObserveIncomingRequests(status, method, path)
 		monitor.ObserveRequestsDuration(duration, status, method, path)
