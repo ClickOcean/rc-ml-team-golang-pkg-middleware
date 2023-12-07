@@ -15,7 +15,7 @@ import (
 )
 
 type HTTPClient interface {
-	Post(ctx context.Context, req requestParams) (*http.Response, error)
+	POST(ctx context.Context, req requestParams) (*http.Response, error)
 }
 
 type DataSaverCfg struct {
@@ -65,16 +65,23 @@ func DataSaver(
 
 		data.WriteString(fmt.Sprintf(`{"service_name":"%s",`, serviceName))
 		data.WriteString(`"payload":{"request":`)
+		lenDataBefore := data.Len()
 
 		tee := io.TeeReader(c.Request.Body, &data)
 		c.Request.Body = io.NopCloser(tee)
 		c.Next()
 
-		data.WriteString(`,"response":`)
+		if lenDataBefore == data.Len() {
+			data.WriteString(`null`)
+		}
 
-		_, err := data.ReadFrom(&respBuf)
+		data.WriteString(`,"response":`)
+		written, err := data.ReadFrom(&respBuf)
 		if err != nil {
 			logger.Printf("Reading response buffer caused an error: %s", err.Error())
+		}
+		if written == 0 {
+			data.WriteString(`null`)
 		}
 		data.WriteString(`}}`)
 
@@ -92,7 +99,7 @@ func DataSaver(
 				Body: data,
 			}
 
-			resp, err := client.Post(ctx, req)
+			resp, err := client.POST(ctx, req)
 			switch {
 			case err != nil:
 				logger.Printf("Sending to the DataSaver caused an error: %s", err.Error())

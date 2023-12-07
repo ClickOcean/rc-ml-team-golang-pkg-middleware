@@ -38,6 +38,10 @@ func (s *Suite) SetupSuite() {
 	engine.Use(DataSaver(s.client, serviceName, cfg))
 
 	engine.GET("/", func(ctx *gin.Context) {
+		ctx.AbortWithStatus(http.StatusNoContent)
+	})
+
+	engine.POST("/", func(ctx *gin.Context) {
 		var inp map[string]any
 		err := json.NewDecoder(ctx.Request.Body).Decode(&inp)
 		if s.NoError(err) {
@@ -67,7 +71,7 @@ func (s *Suite) TearDownSuite() {
 func (s *Suite) TestDataSaverMiddleware() {
 	reader := strings.NewReader(`{"input":"data"}`)
 
-	recorder := s.doReq(http.MethodGet, "/", reader)
+	recorder := s.doReq(http.MethodPost, "/", reader)
 	resp := recorder.Result()
 	if s.Equal(http.StatusOK, resp.StatusCode) {
 		var respBody map[string]any
@@ -77,12 +81,20 @@ func (s *Suite) TestDataSaverMiddleware() {
 
 	time.Sleep(100 * time.Millisecond)
 }
+func (s *Suite) TestDataSaverMiddlewareWOBody() {
+
+	recorder := s.doReq(http.MethodGet, "/", http.NoBody)
+	resp := recorder.Result()
+	s.Equal(http.StatusNoContent, resp.StatusCode)
+
+	time.Sleep(100 * time.Millisecond)
+}
 
 type MockHTTPClient struct {
 	mock.Mock
 }
 
-func (m *MockHTTPClient) Post(ctx context.Context, req requestParams) (*http.Response, error) {
+func (m *MockHTTPClient) POST(ctx context.Context, req requestParams) (*http.Response, error) {
 	args := m.Called(ctx, req)
 	return args.Get(0).(*http.Response), args.Error(1)
 }
