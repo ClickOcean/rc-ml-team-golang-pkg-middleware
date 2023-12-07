@@ -1,8 +1,6 @@
 package ginmiddleware
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -81,15 +79,13 @@ func (s *Suite) TestDataSaverMiddleware() {
 	reader := strings.NewReader(`{"input":"data"}`)
 
 	s.client.On(
-		"POST",
-		mock.Anything,
-		mock.AnythingOfType("requestParams"),
+		"Do",
+		mock.AnythingOfType("*http.Request"),
 	).Run(func(args mock.Arguments) {
 		var data map[string]any
 
-		reqParam := args.Get(1).(requestParams)
-		buf := reqParam.Body.(bytes.Buffer)
-		err := json.NewDecoder(&buf).Decode(&data)
+		req := args.Get(0).(*http.Request)
+		err := json.NewDecoder(req.Body).Decode(&data)
 		s.NoError(err)
 	}).Return(&http.Response{StatusCode: http.StatusOK}, nil).Once()
 
@@ -107,9 +103,8 @@ func (s *Suite) TestDataSaverMiddleware() {
 func (s *Suite) TestDataSaverMiddlewareWOBody() {
 
 	s.client.On(
-		"POST",
-		mock.Anything,
-		mock.AnythingOfType("requestParams"),
+		"Do",
+		mock.AnythingOfType("*http.Request"),
 	).Return(&http.Response{StatusCode: http.StatusOK}, nil).Once()
 
 	recorder := s.doReq(http.MethodGet, "/", http.NoBody)
@@ -123,8 +118,8 @@ type MockHTTPClient struct {
 	mock.Mock
 }
 
-func (m *MockHTTPClient) POST(ctx context.Context, req requestParams) (*http.Response, error) {
-	args := m.Called(ctx, req)
+func (m *MockHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	args := m.Called(req)
 	return args.Get(0).(*http.Response), args.Error(1)
 }
 

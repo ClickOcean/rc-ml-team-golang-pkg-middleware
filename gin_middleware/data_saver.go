@@ -15,20 +15,12 @@ import (
 )
 
 type HTTPClient interface {
-	POST(ctx context.Context, req requestParams) (*http.Response, error)
+	Do(req *http.Request) (*http.Response, error)
 }
 
 type DataSaverCfg struct {
 	URL     string
 	Timeout int //Second
-}
-
-type requestParams struct {
-	URL           string
-	Headers       map[string]string
-	Body          any
-	ErrorResult   any
-	SuccessResult any
 }
 
 type multiWriter struct {
@@ -94,12 +86,13 @@ func DataSaver(
 				return
 			}
 
-			req := requestParams{
-				URL:  cfg.URL,
-				Body: data,
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.URL, &data)
+			if err != nil {
+				logger.Printf("Building http request caused an error: %s", err.Error())
+				return
 			}
 
-			resp, err := client.POST(ctx, req)
+			resp, err := client.Do(req)
 			switch {
 			case err != nil:
 				logger.Printf("Sending to the DataSaver caused an error: %s", err.Error())
