@@ -22,8 +22,8 @@ type Suite struct {
 }
 
 type testParams struct {
-	DataSaverCfg
-	serviceName string
+	dataSaverURL string
+	serviceName  string
 }
 
 func TestDataSaver(t *testing.T) {
@@ -35,14 +35,11 @@ func (s *Suite) SetupSuite() {
 
 	s.client = &MockHTTPClient{}
 	s.cfg = testParams{
-		DataSaverCfg: DataSaverCfg{
-			URL:     "http://example.com",
-			Timeout: 1,
-		},
-		serviceName: "test",
+		dataSaverURL: "http://example.com",
+		serviceName:  "test",
 	}
 
-	engine.Use(DataSaver(s.client, s.cfg.serviceName, s.cfg.DataSaverCfg))
+	engine.Use(DataSaver(s.client, s.cfg.serviceName, s.cfg.dataSaverURL))
 
 	engine.GET("/", func(ctx *gin.Context) {
 		ctx.AbortWithStatus(http.StatusNoContent)

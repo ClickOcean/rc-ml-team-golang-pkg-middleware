@@ -2,25 +2,18 @@ package ginmiddleware
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
-}
-
-type DataSaverCfg struct {
-	URL     string
-	Timeout int //Second
 }
 
 type multiWriter struct {
@@ -35,7 +28,7 @@ func (mw multiWriter) Write(b []byte) (int, error) {
 func DataSaver(
 	client HTTPClient,
 	serviceName string,
-	cfg DataSaverCfg,
+	dataSaverURL string,
 ) gin.HandlerFunc {
 
 	logger := log.Default() //TODO: replace custom logger when will be implemented
@@ -77,16 +70,13 @@ func DataSaver(
 		}
 		data.WriteString(`}}`)
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Timeout)*time.Second)
 		go func() {
-			defer cancel()
-
 			if !json.Valid(data.Bytes()) {
 				logger.Printf("JSON isn't valid: %s", data.String())
 				return
 			}
 
-			req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.URL, &data)
+			req, err := http.NewRequest(http.MethodPost, dataSaverURL, &data)
 			if err != nil {
 				logger.Printf("Building http request caused an error: %s", err.Error())
 				return
