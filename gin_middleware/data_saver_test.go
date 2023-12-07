@@ -1,6 +1,7 @@
 package ginmiddleware
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -19,6 +20,12 @@ type Suite struct {
 	suite.Suite
 	client *MockHTTPClient
 	doReq  func(method, path string, body io.Reader) *httptest.ResponseRecorder
+	cfg    testParams
+}
+
+type testParams struct {
+	DataSaverCfg
+	serviceName string
 }
 
 func TestDataSaver(t *testing.T) {
@@ -29,13 +36,15 @@ func (s *Suite) SetupSuite() {
 	engine := gin.New()
 
 	s.client = &MockHTTPClient{}
-	serviceName := "test"
-	cfg := DataSaverCfg{
-		URL:     "http://example.com",
-		Timeout: 1,
+	s.cfg = testParams{
+		DataSaverCfg: DataSaverCfg{
+			URL:     "http://example.com",
+			Timeout: 1,
+		},
+		serviceName: "test",
 	}
 
-	engine.Use(DataSaver(s.client, serviceName, cfg))
+	engine.Use(DataSaver(s.client, s.cfg.serviceName, s.cfg.DataSaverCfg))
 
 	engine.GET("/", func(ctx *gin.Context) {
 		ctx.AbortWithStatus(http.StatusNoContent)
@@ -71,6 +80,19 @@ func (s *Suite) TearDownSuite() {
 func (s *Suite) TestDataSaverMiddleware() {
 	reader := strings.NewReader(`{"input":"data"}`)
 
+	s.client.On(
+		"POST",
+		mock.Anything,
+		mock.AnythingOfType("requestParams"),
+	).Run(func(args mock.Arguments) {
+		var data map[string]any
+
+		reqParam := args.Get(1).(requestParams)
+		buf := reqParam.Body.(bytes.Buffer)
+		err := json.NewDecoder(&buf).Decode(&data)
+		s.NoError(err)
+	}).Return(&http.Response{StatusCode: http.StatusOK}, nil).Once()
+
 	recorder := s.doReq(http.MethodPost, "/", reader)
 	resp := recorder.Result()
 	if s.Equal(http.StatusOK, resp.StatusCode) {
@@ -79,15 +101,22 @@ func (s *Suite) TestDataSaverMiddleware() {
 		s.Equal("data", respBody["output"])
 	}
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 }
+
 func (s *Suite) TestDataSaverMiddlewareWOBody() {
+
+	s.client.On(
+		"POST",
+		mock.Anything,
+		mock.AnythingOfType("requestParams"),
+	).Return(&http.Response{StatusCode: http.StatusOK}, nil).Once()
 
 	recorder := s.doReq(http.MethodGet, "/", http.NoBody)
 	resp := recorder.Result()
 	s.Equal(http.StatusNoContent, resp.StatusCode)
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 }
 
 type MockHTTPClient struct {
