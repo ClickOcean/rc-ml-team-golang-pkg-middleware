@@ -83,11 +83,13 @@ func DataSaver(
 			}
 
 			resp, err := client.Do(req)
-			switch {
-			case err != nil:
+			if err != nil {
 				logger.Printf("Sending to the DataSaver caused an error: %s", err.Error())
 				return
-			case resp.StatusCode > 299:
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode > 299 {
 				var body any
 
 				err := json.NewDecoder(resp.Body).Decode(&body)

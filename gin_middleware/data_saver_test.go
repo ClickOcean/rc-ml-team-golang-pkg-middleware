@@ -1,6 +1,7 @@
 package ginmiddleware
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -84,7 +85,10 @@ func (s *Suite) TestDataSaverMiddleware() {
 		req := args.Get(0).(*http.Request)
 		err := json.NewDecoder(req.Body).Decode(&data)
 		s.NoError(err)
-	}).Return(&http.Response{StatusCode: http.StatusOK}, nil).Once()
+	}).Return(&http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBuffer([]byte{})),
+	}, nil).Once()
 
 	recorder := s.doReq(http.MethodPost, "/", reader)
 	resp := recorder.Result()
@@ -102,7 +106,10 @@ func (s *Suite) TestDataSaverMiddlewareWOBody() {
 	s.client.On(
 		"Do",
 		mock.AnythingOfType("*http.Request"),
-	).Return(&http.Response{StatusCode: http.StatusOK}, nil).Once()
+	).Return(&http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBuffer([]byte{})),
+	}, nil).Once()
 
 	recorder := s.doReq(http.MethodGet, "/", http.NoBody)
 	resp := recorder.Result()
