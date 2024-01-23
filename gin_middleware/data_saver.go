@@ -3,7 +3,6 @@ package ginmiddleware
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -21,6 +20,19 @@ type multiWriter struct {
 	w io.Writer
 }
 
+type dataSaverReq struct {
+	ServiceName string  `json:"service_name"`
+	Payload     payload `json:"payload"`
+}
+
+type payload struct {
+	Request            json.RawMessage     `json:"request,omitempty"`
+	Response           json.RawMessage     `json:"response,omitempty"`
+	Headers            map[string][]string `json:"headers,omitempty"`
+	URI                string              `json:"uri"`
+	ResponseStatusCode int                 `json:"response_status_code"`
+}
+
 func (mw multiWriter) Write(b []byte) (int, error) {
 	return mw.w.Write(b)
 }
@@ -35,48 +47,41 @@ func DataSaver(
 	logger.SetOutput(os.Stdout)
 
 	return func(c *gin.Context) {
-		//data has format
-		//{"service_name":"some_name","payload":{"request":any,"response":any}}
 
 		var (
-			data, respBuf bytes.Buffer
+			respBuff, reqBuff bytes.Buffer
 		)
 
 		mWriter := &multiWriter{
 			ResponseWriter: c.Writer,
-			w:              io.MultiWriter(c.Writer, &respBuf),
+			w:              io.MultiWriter(c.Writer, &respBuff),
 		}
 		c.Writer = mWriter
 
-		data.WriteString(fmt.Sprintf(`{"service_name":"%s",`, serviceName))
-		data.WriteString(`"payload":{"request":`)
-		lenDataBefore := data.Len()
-
-		tee := io.TeeReader(c.Request.Body, &data)
+		tee := io.TeeReader(c.Request.Body, &reqBuff)
 		c.Request.Body = io.NopCloser(tee)
+
 		c.Next()
 
-		if lenDataBefore == data.Len() {
-			data.WriteString(`null`)
+		reqBody := dataSaverReq{
+			ServiceName: serviceName,
+			Payload: payload{
+				Request:            reqBuff.Bytes(),
+				Response:           respBuff.Bytes(),
+				Headers:            c.Request.Header.Clone(),
+				URI:                c.Request.RequestURI,
+				ResponseStatusCode: c.Writer.Status(),
+			},
 		}
-
-		data.WriteString(`,"response":`)
-		written, err := data.ReadFrom(&respBuf)
-		if err != nil {
-			logger.Printf("Reading response buffer caused an error: %s", err.Error())
-		}
-		if written == 0 {
-			data.WriteString(`null`)
-		}
-		data.WriteString(`}}`)
 
 		go func() {
-			if !json.Valid(data.Bytes()) {
-				logger.Printf("JSON isn't valid: %s", data.String())
+			body, err := json.Marshal(reqBody)
+			if err != nil {
+				logger.Printf("Marshaling request caused an error: %s", err.Error())
 				return
 			}
 
-			req, err := http.NewRequest(http.MethodPost, dataSaverURL, &data)
+			req, err := http.NewRequest(http.MethodPost, dataSaverURL, bytes.NewBuffer(body))
 			if err != nil {
 				logger.Printf("Building http request caused an error: %s", err.Error())
 				return
