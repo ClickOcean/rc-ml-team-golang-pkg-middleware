@@ -3,6 +3,7 @@ package ginmiddleware
 import (
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,15 +14,17 @@ import (
 type rateSuite struct {
 	suite.Suite
 	doReq func() *httptest.ResponseRecorder
+	limit int
 }
 
 func TestRateLimier(t *testing.T) {
 	suite.Run(t, new(rateSuite))
 }
 
-func (s *rateSuite) SetupSuite() {
+func (s *rateSuite) SetupTest() {
+	s.limit = 10
 	e := gin.New()
-	e.Use(RateLimit(1))
+	e.Use(RateLimit(s.limit))
 
 	e.GET("/", func(ctx *gin.Context) {
 		ctx.AbortWithStatus(http.StatusOK)
@@ -35,10 +38,49 @@ func (s *rateSuite) SetupSuite() {
 func (s *rateSuite) TestRate() {
 	time.Sleep(time.Second)
 
-	rec := s.doReq()
-	s.Equal(http.StatusOK, rec.Result().StatusCode)
+	for i := 0; i < s.limit; i++ {
+		rec := s.doReq()
+		s.Equal(http.StatusOK, rec.Result().StatusCode)
+	}
 
-	rec = s.doReq()
+	rec := s.doReq()
 	s.Equal(http.StatusTooManyRequests, rec.Result().StatusCode)
+}
+
+func (s *rateSuite) TestConcurrencyReq() {
+	time.Sleep(time.Second + 100*time.Millisecond)
+
+	statusCh := make(chan int)
+	statuses := []int{}
+
+	increased := 5
+
+	go func() {
+		for s := range statusCh {
+			statuses = append(statuses, s)
+		}
+	}()
+
+	wg := new(sync.WaitGroup)
+	for i := 0; i < s.limit+increased; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			rec := s.doReq()
+			statusCh <- rec.Result().StatusCode
+		}()
+	}
+
+	wg.Wait()
+	close(statusCh)
+
+	count := 0
+	for _, status := range statuses {
+		if status == http.StatusTooManyRequests {
+			count = count + 1
+		}
+	}
+
+	s.Equal(increased, count)
 
 }
