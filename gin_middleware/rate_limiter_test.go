@@ -3,6 +3,7 @@ package ginmiddleware
 import (
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -44,11 +45,13 @@ func (s *rateSuite) TestRate() {
 	}
 
 	rec := s.doReq()
+	headers := rec.Result().Header
 	s.Equal(http.StatusTooManyRequests, rec.Result().StatusCode)
+	s.Equal(strconv.Itoa(s.limit), headers.Get("X-RateLimit-Limit"))
 }
 
 func (s *rateSuite) TestConcurrencyReq() {
-	time.Sleep(time.Second + 100*time.Millisecond)
+	time.Sleep(time.Second)
 
 	statusCh := make(chan int)
 	statuses := []int{}
@@ -73,6 +76,7 @@ func (s *rateSuite) TestConcurrencyReq() {
 
 	wg.Wait()
 	close(statusCh)
+	time.Sleep(10 * time.Millisecond)
 
 	count := 0
 	for _, status := range statuses {
