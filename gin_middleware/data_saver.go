@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -26,11 +27,12 @@ type dataSaverReq struct {
 }
 
 type payload struct {
-	Request            json.RawMessage     `json:"request,omitempty"`
-	Response           json.RawMessage     `json:"response,omitempty"`
-	Headers            map[string][]string `json:"headers,omitempty"`
-	URI                string              `json:"uri"`
-	ResponseStatusCode int                 `json:"response_status_code"`
+	Request            json.RawMessage `json:"request,omitempty"`
+	Response           json.RawMessage `json:"response,omitempty"`
+	RequestDateTime    string          `json:"request_date_time,omitempty"`
+	Headers            http.Header     `json:"headers,omitempty"`
+	URI                string          `json:"uri"`
+	ResponseStatusCode int             `json:"response_status_code"`
 }
 
 func (mw multiWriter) Write(b []byte) (int, error) {
@@ -52,6 +54,8 @@ func DataSaver(
 			respBuff, reqBuff bytes.Buffer
 		)
 
+		reqTime := time.Now().UTC().Format(time.DateTime)
+
 		mWriter := &multiWriter{
 			ResponseWriter: c.Writer,
 			w:              io.MultiWriter(c.Writer, &respBuff),
@@ -68,6 +72,7 @@ func DataSaver(
 			Payload: payload{
 				Request:            reqBuff.Bytes(),
 				Response:           respBuff.Bytes(),
+				RequestDateTime:    reqTime,
 				Headers:            c.Request.Header.Clone(),
 				URI:                c.Request.RequestURI,
 				ResponseStatusCode: c.Writer.Status(),

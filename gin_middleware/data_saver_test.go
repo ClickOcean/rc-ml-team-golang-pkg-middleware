@@ -117,6 +117,30 @@ func (s *Suite) TestDataSaverMiddlewareWOBody() {
 
 	time.Sleep(50 * time.Millisecond)
 }
+func (s *Suite) TestHeader() {
+
+	s.client.On(
+		"Do",
+		mock.AnythingOfType("*http.Request"),
+	).Return(&http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBuffer([]byte{})),
+	}, nil,
+	).Run(func(args mock.Arguments) {
+		var data dataSaverReq
+
+		req, _ := args.Get(0).(*http.Request)
+		err := json.NewDecoder(req.Body).Decode(&data)
+		if s.NoError(err) {
+			_, err := time.Parse(time.DateTime, data.Payload.RequestDateTime)
+			s.NoError(err)
+		}
+	}).Once()
+
+	s.doReq(http.MethodGet, "/", http.NoBody)
+
+	time.Sleep(50 * time.Millisecond)
+}
 
 type MockHTTPClient struct {
 	mock.Mock
