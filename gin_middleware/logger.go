@@ -38,6 +38,7 @@ func StructuredLogger(
 		args := []any{
 			"client_id", c.ClientIP(),
 			"method", c.Request.Method,
+			"headers", c.Request.Header,
 			"status_code", c.Writer.Status(),
 			"body_size", c.Writer.Size(),
 			"path", path,
