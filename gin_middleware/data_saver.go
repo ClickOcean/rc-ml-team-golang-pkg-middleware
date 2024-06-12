@@ -26,10 +26,6 @@ type DataSaverRequest struct {
 	Payload     payload `json:"payload"`
 }
 
-func (req DataSaverRequest) Request() []byte {
-	return req.Payload.Request
-}
-
 type payload struct {
 	Request            json.RawMessage `json:"request,omitempty"`
 	Response           json.RawMessage `json:"response,omitempty"`
