@@ -128,7 +128,7 @@ func (s *Suite) TestHeader() {
 		Body:       io.NopCloser(bytes.NewBuffer([]byte{})),
 	}, nil,
 	).Run(func(args mock.Arguments) {
-		var data dataSaverReq
+		var data DataSaverRequest
 
 		req, _ := args.Get(0).(*http.Request)
 		err := json.NewDecoder(req.Body).Decode(&data)
@@ -145,7 +145,7 @@ func (s *Suite) TestHeader() {
 
 func (s *Suite) TestIsItWillBeSend() {
 
-	conditionFunc := func(req dataSaverReq) bool {
+	conditionFunc := func(req DataSaverRequest) bool {
 		return false
 	}
 

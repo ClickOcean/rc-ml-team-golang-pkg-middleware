@@ -21,12 +21,12 @@ type multiWriter struct {
 	w io.Writer
 }
 
-type dataSaverReq struct {
+type DataSaverRequest struct {
 	ServiceName string  `json:"service_name"`
 	Payload     payload `json:"payload"`
 }
 
-func (req dataSaverReq) Request() []byte {
+func (req DataSaverRequest) Request() []byte {
 	return req.Payload.Request
 }
 
@@ -39,7 +39,7 @@ type payload struct {
 	ResponseStatusCode int             `json:"response_status_code"`
 }
 
-type IsItWillBeSend func(req dataSaverReq) bool
+type IsItWillBeSend func(req DataSaverRequest) bool
 
 func (mw multiWriter) Write(b []byte) (int, error) {
 	return mw.w.Write(b)
@@ -74,7 +74,7 @@ func DataSaver(
 
 		c.Next()
 
-		reqBody := dataSaverReq{
+		reqBody := DataSaverRequest{
 			ServiceName: serviceName,
 			Payload: payload{
 				Request:            reqBuff.Bytes(),
