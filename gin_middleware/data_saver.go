@@ -26,6 +26,10 @@ type dataSaverReq struct {
 	Payload     payload `json:"payload"`
 }
 
+func (req dataSaverReq) Request() []byte {
+	return req.Payload.Request
+}
+
 type payload struct {
 	Request            json.RawMessage `json:"request,omitempty"`
 	Response           json.RawMessage `json:"response,omitempty"`
@@ -35,6 +39,8 @@ type payload struct {
 	ResponseStatusCode int             `json:"response_status_code"`
 }
 
+type IsItWillBeSend func(req dataSaverReq) bool
+
 func (mw multiWriter) Write(b []byte) (int, error) {
 	return mw.w.Write(b)
 }
@@ -43,6 +49,7 @@ func DataSaver(
 	client HTTPClient,
 	serviceName string,
 	dataSaverURL string,
+	conditionFuncs ...IsItWillBeSend,
 ) gin.HandlerFunc {
 
 	logger := log.Default() //TODO: replace custom logger when will be implemented
@@ -77,6 +84,12 @@ func DataSaver(
 				URI:                c.Request.RequestURI,
 				ResponseStatusCode: c.Writer.Status(),
 			},
+		}
+
+		for _, isItWillBeSend := range conditionFuncs {
+			if !isItWillBeSend(reqBody) {
+				return
+			}
 		}
 
 		go func() {

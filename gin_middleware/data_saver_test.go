@@ -20,6 +20,7 @@ type Suite struct {
 	client *MockHTTPClient
 	doReq  func(method, path string, body io.Reader) *httptest.ResponseRecorder
 	cfg    testParams
+	engine *gin.Engine
 }
 
 type testParams struct {
@@ -32,7 +33,7 @@ func TestDataSaver(t *testing.T) {
 }
 
 func (s *Suite) SetupSuite() {
-	engine := gin.New()
+	s.engine = gin.New()
 
 	s.client = &MockHTTPClient{}
 	s.cfg = testParams{
@@ -40,13 +41,13 @@ func (s *Suite) SetupSuite() {
 		serviceName:  "test",
 	}
 
-	engine.Use(DataSaver(s.client, s.cfg.serviceName, s.cfg.dataSaverURL))
+	dsMiddleware := DataSaver(s.client, s.cfg.serviceName, s.cfg.dataSaverURL)
 
-	engine.GET("/", func(ctx *gin.Context) {
+	s.engine.GET("/", dsMiddleware, func(ctx *gin.Context) {
 		ctx.AbortWithStatus(http.StatusNoContent)
 	})
 
-	engine.POST("/", func(ctx *gin.Context) {
+	s.engine.POST("/", dsMiddleware, func(ctx *gin.Context) {
 		var inp map[string]any
 		err := json.NewDecoder(ctx.Request.Body).Decode(&inp)
 		if s.NoError(err) {
@@ -59,7 +60,7 @@ func (s *Suite) SetupSuite() {
 	})
 
 	s.doReq = func(method, path string, body io.Reader) *httptest.ResponseRecorder {
-		return PerformRequest(engine, method, path, body)
+		return PerformRequest(s.engine, method, path, body)
 	}
 
 }
@@ -138,6 +139,23 @@ func (s *Suite) TestHeader() {
 	}).Once()
 
 	s.doReq(http.MethodGet, "/", http.NoBody)
+
+	time.Sleep(50 * time.Millisecond)
+}
+
+func (s *Suite) TestIsItWillBeSend() {
+
+	conditionFunc := func(req dataSaverReq) bool {
+		return false
+	}
+
+	dsMiddleware := DataSaver(s.client, s.cfg.serviceName, s.cfg.dataSaverURL, conditionFunc)
+
+	s.engine.GET("/withFunc", dsMiddleware, func(ctx *gin.Context) {
+		ctx.AbortWithStatus(http.StatusNoContent)
+	})
+
+	s.doReq(http.MethodGet, "/withFunc", http.NoBody)
 
 	time.Sleep(50 * time.Millisecond)
 }
