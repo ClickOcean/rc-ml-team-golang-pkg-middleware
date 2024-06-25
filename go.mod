@@ -1,4 +1,4 @@
-module gitlab.ml.rc.dating.com/rc-ml-team/golang-pkg/middleware
+module https://github.com/ClickOcean/rc-ml-team-golang-pkg-middleware
 
 go 1.20
 
