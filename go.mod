@@ -1,4 +1,4 @@
-module https://github.com/ClickOcean/rc-ml-team-golang-pkg-middleware
+module github.com/ClickOcean/rc-ml-team-golang-pkg-middleware
 
 go 1.20
 
